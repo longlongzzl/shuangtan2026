@@ -10,6 +10,21 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
 
+REQUIRED_SAMPLE_QUESTIONS = [
+    "我想基于 NXP AIoT Cloud 搭建一个离线运行的网站智能客服系统，用来回答 Ara240、LLM Edge Studio 和边缘 AI 部署相关问题。请问这个系统应该采用什么整体架构？知识库怎么构建？用户提问后 RAG 的完整流程是什么？本地部署相比云端调用有什么优势？",
+    "用户提问后，RAG 智能客服系统是如何从知识库中找到资料并生成回答的？",
+    "LLM Edge Studio 和普通云端大模型调用有什么区别？它为什么适合边缘端智能应用？",
+    "Ara240 DNPU 在边缘 AI 视觉分析任务中主要承担什么作用？",
+    "为什么这个项目不直接使用通用大模型回答，而要加入本地知识库和 RAG 检索？",
+    "我想基于 NXP AIoT Cloud 搭建一个离线运行的网站智能客服系统，应该采用什么整体架构？",
+    "用户提问后，RAG 智能客服系统的完整处理流程是什么？",
+    "本地大模型部署相比云端大模型调用有什么优势？",
+    "LLM Edge Studio 的核心目标是什么？",
+    "Ara240 DNPU 在边缘 AI 视觉任务中有什么作用？",
+    "为什么智能客服系统需要知识库检索，而不是直接让大模型回答？",
+]
+
+
 def check(name: str, func) -> bool:
     try:
         result = func()
@@ -68,8 +83,8 @@ def main() -> int:
 
     def assert_sample_questions() -> str:
         data = assert_response(client.get("/api/sample-questions"))
-        assert len(data) >= 6
-        assert "RAG" in " ".join(data)
+        missing = [question for question in REQUIRED_SAMPLE_QUESTIONS if question not in data]
+        assert not missing, missing
         return f"{len(data)} questions"
 
     def assert_rebuild_index() -> dict[str, Any]:

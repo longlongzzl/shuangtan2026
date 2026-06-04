@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.rag.chunker import TextChunker
-from app.rag.document_loader import Document
+from app.rag.document_loader import Document, load_documents
 from app.rag.embeddings import TfidfEmbeddingProvider
 from app.rag.prompt_builder import build_rag_prompt
 from app.rag.vector_store import SimpleVectorStore
@@ -37,6 +37,30 @@ def test_prompt_builder_contains_question_and_context() -> None:
     full_prompt = "\n".join(message["content"] for message in messages)
     assert "RAG 如何工作？" in full_prompt
     assert "用户问题会先进入知识库检索" in full_prompt
+    assert "不要编造" in full_prompt
+    assert "参考资料" in full_prompt
+
+
+def test_document_loader_supports_md_txt_json(tmp_path: Path) -> None:
+    (tmp_path / "plain.md").write_text("没有元数据的 Markdown 文档。", encoding="utf-8")
+    (tmp_path / "with_meta.txt").write_text(
+        "---\ntitle: TXT 标题\ncategory: TXT 分类\nsource: txt_source\n---\n\nTXT 正文。",
+        encoding="utf-8",
+    )
+    (tmp_path / "structured.json").write_text(
+        '{"title":"JSON 标题","category":"JSON 分类","source":"json_source","content":"JSON 正文。"}',
+        encoding="utf-8",
+    )
+
+    documents = load_documents(tmp_path)
+    by_title = {document.title: document for document in documents}
+
+    assert len(documents) == 3
+    assert "plain" in by_title
+    assert by_title["TXT 标题"].category == "TXT 分类"
+    assert by_title["TXT 标题"].source == "txt_source"
+    assert by_title["JSON 标题"].category == "JSON 分类"
+    assert by_title["JSON 标题"].source == "json_source"
 
 
 def test_schemas_can_serialize() -> None:

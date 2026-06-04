@@ -238,6 +238,8 @@ def create_vector_store(config: Settings = settings, force_simple: bool = False)
 def reset_vector_store_files(config: Settings = settings) -> None:
     if config.vector_store_dir.exists():
         for child in config.vector_store_dir.iterdir():
+            if child.name == ".gitkeep":
+                continue
             if child.is_dir():
                 shutil.rmtree(child)
             else:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -30,13 +31,20 @@ app.mount("/static", StaticFiles(directory=settings.frontend_dir), name="static"
 
 
 SAMPLE_QUESTIONS = [
+    # Section 12 main demo question.
     "我想基于 NXP AIoT Cloud 搭建一个离线运行的网站智能客服系统，用来回答 Ara240、LLM Edge Studio 和边缘 AI 部署相关问题。请问这个系统应该采用什么整体架构？知识库怎么构建？用户提问后 RAG 的完整流程是什么？本地部署相比云端调用有什么优势？",
+    # Section 12 backup questions.
     "用户提问后，RAG 智能客服系统是如何从知识库中找到资料并生成回答的？",
     "LLM Edge Studio 和普通云端大模型调用有什么区别？它为什么适合边缘端智能应用？",
     "Ara240 DNPU 在边缘 AI 视觉分析任务中主要承担什么作用？",
     "为什么这个项目不直接使用通用大模型回答，而要加入本地知识库和 RAG 检索？",
+    # Section 4 API examples.
     "我想基于 NXP AIoT Cloud 搭建一个离线运行的网站智能客服系统，应该采用什么整体架构？",
+    "用户提问后，RAG 智能客服系统的完整处理流程是什么？",
     "本地大模型部署相比云端大模型调用有什么优势？",
+    "LLM Edge Studio 的核心目标是什么？",
+    "Ara240 DNPU 在边缘 AI 视觉任务中有什么作用？",
+    "为什么智能客服系统需要知识库检索，而不是直接让大模型回答？",
 ]
 
 
@@ -62,6 +70,17 @@ def _safe_stats() -> dict:
         return get_index_stats(settings)
     except Exception:
         return {"document_count": 0, "chunk_count": 0, "categories": [], "vector_store": "unknown"}
+
+
+def _index_ready() -> bool:
+    meta_path = settings.vector_store_dir / "index_meta.json"
+    if not meta_path.exists():
+        return False
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return int(metadata.get("chunk_count", 0) or 0) > 0
 
 
 @app.get("/")
@@ -140,8 +159,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 
     _set_step(process, 1, "done", "后端成功接收用户输入。")
     try:
-        current_stats = _safe_stats()
-        if current_stats.get("chunk_count", 0) == 0:
+        if not _index_ready():
             build_index(settings)
 
         retriever = Retriever(settings)

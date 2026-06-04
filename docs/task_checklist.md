@@ -17,7 +17,7 @@
 | 九、README 要求 | README 已包含项目简介、mermaid 架构图、技术栈、目录、环境、Ollama、依赖、初始化、索引、启动、演示、排查、分工、扩展方向。 |
 | 十、.env.example 要求 | 已按任务书提供默认配置，包括 qwen2.5:7b、nomic-embed-text、TOP_K、MIN_SCORE、CHUNK_SIZE、MOCK_LLM 等。 |
 | 十一、文档要求 | 已完成 `project_design.md`、`demo_script.md`、`api_reference.md`。 |
-| 十二、演示问题设计 | 已内置主演示问题和备用问题，并写入 README 与演示脚本。 |
+| 十二、演示问题设计 | 已精确内置任务书第四章 6 个 API 示例问题和第十二章 5 个主演示/备用问题，并写入 README、演示脚本和 API 文档。 |
 | 十三、页面展示重点 | 前端右侧清楚展示问题向量化、知识库检索、Prompt 构造、本地模型生成和答案返回。 |
 | 十四、测试要求 | 已实现 `scripts/smoke_test.py` 和 `tests/test_basic.py`，无 Ollama 时可用 MOCK/TF-IDF 测试。 |
 | 十五、验收标准 | 已验证 seed、build_index、后端启动、网页健康检查、chat、RAG 流程、检索来源、无云端 API。 |
@@ -33,4 +33,5 @@
 - `python -m py_compile app/*.py app/rag/*.py scripts/*.py tests/*.py`：通过。
 - `pytest -q`：通过，4 项测试。
 - `python scripts/smoke_test.py`：通过，覆盖首页、健康检查、统计、示例问题、重建索引和 MOCK_LLM 聊天。
+- `python scripts/acceptance_check.py`：通过，覆盖目录结构、配置、README、文档、前端关键元素、无 Ollama 降级、11 个示例问题、重建索引、MOCK 聊天和无来源提示。
 - 真实后端健康检查：通过，`ollama_connected=true`，模型为 `qwen2.5:7b` 和 `nomic-embed-text`。

@@ -1,5 +1,7 @@
 # 基于本地大模型与 RAG 技术的网站智能客服系统
 
+## 项目简介
+
 这是一个面向课程/实习展示的完整 Demo 项目。系统使用 Python、FastAPI、Ollama、本地知识库和 RAG 检索增强生成技术，实现 NXP AIoT Cloud / Cloud Lab / Ara240 / Edge AI / LLM Edge Studio / VLM Edge Studio 相关资料的智能客服问答。
 
 默认不调用 OpenAI、ChatGPT API 或其他云端大模型服务。运行时优先连接本机 Ollama；如果 Ollama 未启动，后端会返回清晰提示，前端不会白屏。课堂演示时也可以设置 `MOCK_LLM=true` 先演示完整页面流程。
@@ -75,7 +77,11 @@ cd nxp-aiot-local-chatbot
 
 python -m venv .venv
 source .venv/bin/activate
+```
 
+## 安装依赖
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -131,6 +137,8 @@ python scripts/build_index.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## 打开网页
+
 浏览器打开：
 
 ```text
@@ -152,6 +160,15 @@ http://localhost:8000
 - Ara240 DNPU 在边缘 AI 视觉分析任务中主要承担什么作用？
 - 为什么这个项目不直接使用通用大模型回答，而要加入本地知识库和 RAG 检索？
 
+API 内置的示例问题还包括：
+
+- 我想基于 NXP AIoT Cloud 搭建一个离线运行的网站智能客服系统，应该采用什么整体架构？
+- 用户提问后，RAG 智能客服系统的完整处理流程是什么？
+- 本地大模型部署相比云端大模型调用有什么优势？
+- LLM Edge Studio 的核心目标是什么？
+- Ara240 DNPU 在边缘 AI 视觉任务中有什么作用？
+- 为什么智能客服系统需要知识库检索，而不是直接让大模型回答？
+
 ## API
 
 - `GET /api/health`：系统状态、Ollama 连接、模型名、知识库数量
@@ -166,10 +183,12 @@ http://localhost:8000
 
 ```bash
 python scripts/smoke_test.py
+python scripts/acceptance_check.py
 pytest -q
 ```
 
 `smoke_test.py` 会默认使用 `MOCK_LLM=true` 与 `EMBED_PROVIDER=tfidf`，因此没有 Ollama 时也能完成基础流程测试。
+`acceptance_check.py` 会按任务书关键验收项检查目录结构、配置、文档、前端关键元素、API 行为、无 Ollama 降级和 MOCK 聊天流程。
 
 ## 常见问题排查
 
