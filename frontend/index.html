@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NXP AIoT Cloud 智能客服系统</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local Ollama + RAG Demo</p>
+          <h1>NXP AIoT Cloud 智能客服系统</h1>
+        </div>
+        <div class="top-actions">
+          <button id="refreshStatusBtn" class="icon-button" title="刷新状态" aria-label="刷新状态">↻</button>
+          <button id="clearChatBtn" class="secondary-button">清空聊天</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="status-panel panel">
+          <div class="panel-heading">
+            <h2>系统状态</h2>
+            <span id="statusPill" class="status-pill muted">检测中</span>
+          </div>
+          <dl class="status-grid">
+            <div>
+              <dt>本地模型连接</dt>
+              <dd id="ollamaStatus">检测中</dd>
+            </div>
+            <div>
+              <dt>LLM 模型</dt>
+              <dd id="llmModel">-</dd>
+            </div>
+            <div>
+              <dt>Embedding 模型</dt>
+              <dd id="embedModel">-</dd>
+            </div>
+            <div>
+              <dt>知识库文档数</dt>
+              <dd id="documentCount">0</dd>
+            </div>
+            <div>
+              <dt>知识库 Chunk 数</dt>
+              <dd id="chunkCount">0</dd>
+            </div>
+            <div>
+              <dt>向量库类型</dt>
+              <dd id="vectorStore">-</dd>
+            </div>
+            <div>
+              <dt>RAG 模式</dt>
+              <dd>开启</dd>
+            </div>
+          </dl>
+          <button id="rebuildIndexBtn" class="primary-button full-width">重建知识库索引</button>
+          <p id="statusMessage" class="notice"></p>
+        </aside>
+
+        <section class="chat-panel panel">
+          <div class="panel-heading">
+            <h2>客服对话</h2>
+            <span id="latencyBadge" class="metric-badge">待提问</span>
+          </div>
+          <div id="chatLog" class="chat-log" aria-live="polite">
+            <div class="message assistant">
+              <div class="avatar">AI</div>
+              <div class="bubble">
+                你好，我是基于本地 Ollama 与 RAG 知识库的 NXP AIoT Cloud 智能客服。请选择示例问题或直接输入问题。
+              </div>
+            </div>
+          </div>
+
+          <div class="sample-section">
+            <div class="sample-header">示例问题</div>
+            <div id="sampleQuestions" class="sample-list"></div>
+          </div>
+
+          <form id="chatForm" class="composer">
+            <textarea
+              id="questionInput"
+              rows="3"
+              placeholder="请输入关于 NXP AIoT Cloud、Ara240、Edge AI、RAG 智能客服的问题"
+            ></textarea>
+            <div class="composer-actions">
+              <label for="topKInput">Top-K</label>
+              <input id="topKInput" type="number" min="1" max="10" value="3" />
+              <button id="sendBtn" class="primary-button" type="submit">发送</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="rag-panel panel">
+          <div class="panel-heading">
+            <h2>RAG 流程</h2>
+            <span id="sourceCountBadge" class="metric-badge">0 来源</span>
+          </div>
+          <ol id="processList" class="process-list"></ol>
+
+          <div class="sources-header">
+            <h2>检索来源</h2>
+          </div>
+          <div id="sourcesList" class="sources-list">
+            <p class="empty-state">发送问题后展示 Top-k 检索片段。</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
