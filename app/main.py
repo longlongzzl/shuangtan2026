@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.demo_llm import generate_mock_answer
 from app.ollama_client import OllamaClient, OllamaError
+from app.rag.embeddings import EmbeddingError
 from app.rag.prompt_builder import build_rag_prompt
 from app.rag.retriever import Retriever, build_index, get_index_stats
 from app.schemas import (
@@ -73,8 +74,19 @@ def health() -> HealthResponse:
     stats = _safe_stats()
     ollama = OllamaClient(settings).health_check()
     connected = bool(ollama.get("connected"))
-    status = "ok" if connected else "degraded"
-    message = None if connected else "Ollama is not running or model is unavailable."
+    missing_models = []
+    if connected and not ollama.get("llm_model_available"):
+        missing_models.append(settings.llm_model)
+    if connected and not ollama.get("embed_model_available"):
+        missing_models.append(settings.embed_model)
+    healthy = connected and not missing_models
+    status = "ok" if healthy else "degraded"
+    if healthy:
+        message = None
+    elif connected:
+        message = f"Ollama is running, but required model is unavailable: {', '.join(missing_models)}."
+    else:
+        message = "Ollama is not running or model is unavailable."
     return HealthResponse(
         status=status,
         ollama_connected=connected,
@@ -133,8 +145,32 @@ def chat(request: ChatRequest) -> ChatResponse:
             build_index(settings)
 
         retriever = Retriever(settings)
+        _set_step(process, 2, "running", f"正在使用 {retriever.embedding_provider_name} 将问题转换为向量。")
+        try:
+            sources = retriever.retrieve(question, top_k=top_k, min_score=settings.min_score)
+        except EmbeddingError as exc:
+            _set_step(process, 2, "failed", f"问题向量化失败：{exc}")
+            _set_step(process, 3, "failed", "无法完成知识库检索。")
+            _set_step(process, 4, "waiting", "未构造生成 Prompt。")
+            _set_step(process, 5, "waiting", "未调用本地大模型。")
+            _set_step(process, 6, "done", "返回模型/embedding 不可用的友好提示。")
+            latency_ms = int((time.time() - started) * 1000)
+            return ChatResponse(
+                answer=(
+                    "本地 embedding 模型不可用，无法完成知识库检索。"
+                    "请确认 Ollama 已启动并已拉取 nomic-embed-text；"
+                    "课堂临时演示可以设置 EMBED_PROVIDER=tfidf 和 MOCK_LLM=true。"
+                ),
+                sources=[],
+                process=process,
+                metrics=ChatMetrics(
+                    latency_ms=latency_ms,
+                    top_k=top_k,
+                    retrieved_count=0,
+                    model=settings.llm_model if not settings.mock_llm else "MOCK_LLM",
+                ),
+            )
         _set_step(process, 2, "done", f"使用 {retriever.embedding_provider_name} 将问题转换为向量。")
-        sources = retriever.retrieve(question, top_k=top_k, min_score=settings.min_score)
         _set_step(process, 3, "done", f"从本地知识库中检索 Top-{top_k} 相关片段，命中 {len(sources)} 条。")
 
         if not sources:

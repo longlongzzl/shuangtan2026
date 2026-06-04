@@ -11,13 +11,22 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s*")
 
 def _split_text_units(text: str) -> list[str]:
     units: list[str] = []
+    for paragraph_units in _split_paragraph_units(text):
+        units.extend(paragraph_units)
+    return units
+
+
+def _split_paragraph_units(text: str) -> list[list[str]]:
+    units: list[str] = []
+    paragraphs: list[list[str]] = []
     for paragraph in re.split(r"\n\s*\n", text.strip()):
         paragraph = re.sub(r"\s+", " ", paragraph).strip()
         if not paragraph:
             continue
         sentences = [item.strip() for item in _SENTENCE_SPLIT_RE.split(paragraph) if item.strip()]
-        units.extend(sentences or [paragraph])
-    return units
+        units = sentences or [paragraph]
+        paragraphs.append(units)
+    return paragraphs
 
 
 class TextChunker:
@@ -32,9 +41,8 @@ class TextChunker:
         return chunks
 
     def chunk_document(self, document: Document) -> list[dict]:
-        units = _split_text_units(document.content)
+        paragraphs = _split_paragraph_units(document.content)
         chunks: list[dict] = []
-        buffer = ""
 
         def emit(text: str) -> None:
             cleaned = text.strip()
@@ -58,26 +66,28 @@ class TextChunker:
                 }
             )
 
-        for unit in units:
-            if len(unit) > self.chunk_size:
-                if buffer:
-                    emit(buffer)
-                    buffer = ""
-                step = self.chunk_size - self.chunk_overlap or self.chunk_size
-                for start in range(0, len(unit), step):
-                    part = unit[start : start + self.chunk_size]
-                    emit(part)
-                continue
+        for units in paragraphs:
+            buffer = ""
+            for unit in units:
+                if len(unit) > self.chunk_size:
+                    if buffer:
+                        emit(buffer)
+                        buffer = ""
+                    step = self.chunk_size - self.chunk_overlap or self.chunk_size
+                    for start in range(0, len(unit), step):
+                        part = unit[start : start + self.chunk_size]
+                        emit(part)
+                    continue
 
-            candidate = f"{buffer}\n{unit}".strip() if buffer else unit
-            if len(candidate) <= self.chunk_size:
-                buffer = candidate
-                continue
+                candidate = f"{buffer}\n{unit}".strip() if buffer else unit
+                if len(candidate) <= self.chunk_size:
+                    buffer = candidate
+                    continue
 
-            emit(buffer)
-            overlap_text = buffer[-self.chunk_overlap :] if self.chunk_overlap and buffer else ""
-            buffer = f"{overlap_text}\n{unit}".strip() if overlap_text else unit
+                emit(buffer)
+                overlap_text = buffer[-self.chunk_overlap :] if self.chunk_overlap and buffer else ""
+                buffer = f"{overlap_text}\n{unit}".strip() if overlap_text else unit
 
-        if buffer:
-            emit(buffer)
+            if buffer:
+                emit(buffer)
         return chunks

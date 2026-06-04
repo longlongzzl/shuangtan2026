@@ -51,7 +51,7 @@ def main() -> int:
         data = assert_response(client.get("/api/health"))
         assert data["knowledge_base_loaded"] is True
         assert data["document_count"] >= 7
-        assert data["chunk_count"] > 0
+        assert data["chunk_count"] >= 30
         return {
             "status": data["status"],
             "documents": data["document_count"],
@@ -62,6 +62,7 @@ def main() -> int:
     def assert_stats() -> dict[str, Any]:
         data = assert_response(client.get("/api/stats"))
         assert data["document_count"] >= 7
+        assert data["chunk_count"] >= 30
         assert "RAG" in data["categories"]
         return data
 
@@ -75,7 +76,7 @@ def main() -> int:
         data = assert_response(client.post("/api/rebuild-index"))
         assert data["status"] == "success"
         assert data["document_count"] >= 7
-        assert data["chunk_count"] > 0
+        assert data["chunk_count"] >= 30
         return {
             "documents": data["document_count"],
             "chunks": data["chunk_count"],
@@ -107,7 +108,9 @@ def main() -> int:
     passed.append(
         check(
             "chunk knowledge base",
-            lambda: len(TextChunker(settings.chunk_size, settings.chunk_overlap).chunk_documents(load_documents(settings.knowledge_base_dir))),
+            lambda: _assert_min_chunks(
+                len(TextChunker(settings.chunk_size, settings.chunk_overlap).chunk_documents(load_documents(settings.knowledge_base_dir))),
+            ),
         )
     )
     passed.append(check("build index", lambda: build_index(settings)))
@@ -121,6 +124,11 @@ def main() -> int:
     passed.append(check("POST /api/chat with MOCK_LLM", assert_chat))
 
     return 0 if all(passed) else 1
+
+
+def _assert_min_chunks(chunk_count: int) -> int:
+    assert chunk_count >= 30
+    return chunk_count
 
 
 if __name__ == "__main__":

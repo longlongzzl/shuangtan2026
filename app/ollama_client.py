@@ -15,6 +15,14 @@ class OllamaError(RuntimeError):
     """Readable wrapper for Ollama connection and response errors."""
 
 
+def _model_available(requested: str, model_names: set[str]) -> bool:
+    if requested in model_names:
+        return True
+    if ":" not in requested and f"{requested}:latest" in model_names:
+        return True
+    return False
+
+
 class OllamaClient:
     def __init__(self, config: Settings = settings) -> None:
         self.config = config
@@ -26,12 +34,19 @@ class OllamaClient:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             response.raise_for_status()
             models = response.json().get("models", [])
-            model_names = {item.get("name") for item in models if isinstance(item, dict)}
+            model_names = set()
+            for item in models:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("name"):
+                    model_names.add(str(item["name"]))
+                if item.get("model"):
+                    model_names.add(str(item["model"]))
             return {
                 "connected": True,
                 "models": sorted(name for name in model_names if name),
-                "llm_model_available": self.config.llm_model in model_names,
-                "embed_model_available": self.config.embed_model in model_names,
+                "llm_model_available": _model_available(self.config.llm_model, model_names),
+                "embed_model_available": _model_available(self.config.embed_model, model_names),
             }
         except requests.RequestException as exc:
             logger.info("Ollama health check failed: %s", exc)
