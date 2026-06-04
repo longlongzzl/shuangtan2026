@@ -192,6 +192,17 @@ def assert_frontend_static_requirements() -> None:
         fail("sample question click fills input", "frontend/app.js does not set questionInput.value")
     if "chatForm.requestSubmit()" not in js:
         fail("enter key send", "frontend/app.js does not submit form on Enter")
+    if 'wrap="soft"' not in html:
+        fail("question input wraps text", "frontend/index.html textarea does not declare wrap=soft")
+    sample_chip_block = css.split(".sample-chip", 1)[1].split("}", 1)[0] if ".sample-chip" in css else ""
+    if "white-space: normal" not in sample_chip_block or "overflow-wrap: anywhere" not in sample_chip_block:
+        fail("sample questions wrap", sample_chip_block)
+    sample_list_block = css.split(".sample-list", 1)[1].split("}", 1)[0] if ".sample-list" in css else ""
+    if "overflow-x: auto" in sample_list_block or "white-space: nowrap" in sample_chip_block:
+        fail("sample questions must not overflow horizontally", sample_list_block)
+    textarea_block = css.split(".composer textarea", 1)[1].split("}", 1)[0] if ".composer textarea" in css else ""
+    if "overflow-wrap: anywhere" not in textarea_block or "white-space: pre-wrap" not in textarea_block:
+        fail("bottom question box wraps text", textarea_block)
     pass_line("frontend static requirements")
 
 
