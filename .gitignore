@@ -9,6 +9,9 @@ __pycache__/
 .venv/
 venv/
 env/
+.local/
+.ollama-models/
+.ollama-home/
 
 data/vector_store/*
 !data/vector_store/.gitkeep
