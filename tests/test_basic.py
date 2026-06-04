@@ -10,6 +10,24 @@ from app.rag.vector_store import SimpleVectorStore
 from app.schemas import ChatMetrics, ChatResponse, SourceItem
 
 
+def test_knowledge_stats_answer_reports_counts() -> None:
+    from app.main import _build_knowledge_stats_answer, _is_knowledge_stats_question
+
+    question = "你有多少可用资料？"
+    stats = {
+        "document_count": 17,
+        "chunk_count": 134,
+        "vector_store": "chroma",
+        "categories": ["NXP AIoT Cloud", "Edge AI"],
+    }
+
+    assert _is_knowledge_stats_question(question)
+    answer = _build_knowledge_stats_answer(question, stats)
+    assert "17 篇资料" in answer
+    assert "134 个可检索片段" in answer
+    assert "chroma" in answer
+
+
 def test_chunker_returns_non_empty_chunks() -> None:
     document = Document(
         doc_id="doc-1",

@@ -72,6 +72,55 @@ def _safe_stats() -> dict:
         return {"document_count": 0, "chunk_count": 0, "categories": [], "vector_store": "unknown"}
 
 
+def _is_knowledge_stats_question(question: str) -> bool:
+    normalized = "".join(question.lower().split())
+    markers = [
+        "多少资料",
+        "多少可用资料",
+        "有多少资料",
+        "你有多少",
+        "资料量",
+        "知识库多少",
+        "多少文档",
+        "多少chunk",
+        "多少片段",
+        "资料数量",
+        "可用资料",
+    ]
+    return any(marker in normalized for marker in markers)
+
+
+def _build_knowledge_stats_answer(question: str, stats: dict) -> str:
+    document_count = int(stats.get("document_count", 0) or 0)
+    chunk_count = int(stats.get("chunk_count", 0) or 0)
+    vector_store = str(stats.get("vector_store") or settings.vector_store)
+    categories = [str(category) for category in stats.get("categories", [])]
+    category_text = "、".join(categories) if categories else "暂无分类统计"
+
+    lines = []
+    if "命令" in question:
+        lines.extend(
+            [
+                "如果你说的是“这种命令”，需要贴出具体命令、页面操作或报错上下文，我才能判断它是否合理。",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            f"当前本地知识库包含 {document_count} 篇资料，已经切分成 {chunk_count} 个可检索片段。",
+            f"这些片段已经写入本地 {vector_store} 向量库，用于 RAG 检索。",
+            f"覆盖分类：{category_text}。",
+            "",
+            "资料内容主要包括 NXP AIoT Cloud / Cloud Lab、AI Hub、Model Zoo、LLM/VLM Edge Studio、Qwen/VSS、YOLOv8n、软件工具、i.MX/MCU 应用范例和系统方案。",
+            "",
+            "参考资料：",
+            "[1] 系统索引元数据",
+            "[2] data/knowledge_base 本地知识库目录",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _index_ready() -> bool:
     meta_path = settings.vector_store_dir / "index_meta.json"
     if not meta_path.exists():
@@ -164,6 +213,26 @@ def chat(request: ChatRequest) -> ChatResponse:
     try:
         if not _index_ready():
             build_index(settings)
+
+        if _is_knowledge_stats_question(question):
+            stats = _safe_stats()
+            _set_step(process, 2, "done", "识别为知识库统计类问题，无需问题向量化。")
+            _set_step(process, 3, "done", "直接读取本地索引元数据和知识库统计。")
+            _set_step(process, 4, "done", "根据系统统计构造回答。")
+            _set_step(process, 5, "done", "无需调用本地大模型生成。")
+            _set_step(process, 6, "done", "返回知识库资料数量和覆盖范围。")
+            latency_ms = int((time.time() - started) * 1000)
+            return ChatResponse(
+                answer=_build_knowledge_stats_answer(question, stats),
+                sources=[],
+                process=process,
+                metrics=ChatMetrics(
+                    latency_ms=latency_ms,
+                    top_k=top_k,
+                    retrieved_count=0,
+                    model="system-stats",
+                ),
+            )
 
         retriever = Retriever(settings)
         _set_step(process, 2, "running", f"正在使用 {retriever.embedding_provider_name} 将问题转换为向量。")
