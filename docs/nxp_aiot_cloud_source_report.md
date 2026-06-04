@@ -29,10 +29,15 @@
 | `data/knowledge_base/12_nxp_qwen_vss_video_ai.md` | Qwen2.5-VL-7B 视频分析、VSS、RAG 视频检索 |
 | `data/knowledge_base/13_nxp_yolov8n_multistream_vision.md` | YOLOv8n 八路视频流目标检测 |
 | `data/knowledge_base/14_nxp_cloud_lab_software_and_routes.md` | DDR、Voice Plugins、应用范例、系统方案和资料边界 |
+| `data/knowledge_base/15_nxp_imx_use_case_api_catalog.md` | 登录态接口返回的 38 个 i.MX 产品应用范例 |
+| `data/knowledge_base/16_nxp_mcu_partner_use_case_api_catalog.md` | 登录态接口返回的 MCU 与合作伙伴应用范例 |
+| `data/knowledge_base/17_nxp_solution_api_catalog.md` | 登录态接口返回的 4 个系统方案 |
 
 ## 访问边界
 
-官网的部分动态列表接口需要 NXP 登录态。未登录访问 `https://api.aiotcloud.nxp.com.cn/get_user_case` 时返回登录页，因此本轮没有把需要登录的数据写入知识库。当前入库内容全部来自公开页面、公开静态资源、公开 Markdown 文档和 sitemap。
+官网的部分动态列表接口需要 NXP 登录态。未登录访问 `https://api.aiotcloud.nxp.com.cn/get_user_case` 时返回登录页。登录后，本轮补充抓取了 `应用范例` 与 `解决方案` 两类接口数据，并将目录、标题、关键词、分类和摘要整理为本地半结构化 Markdown。
+
+接口返回的正文包含较长 HTML 内容。本项目没有把登录态正文整段搬入仓库，而是抽取目录和摘要用于 RAG 检索，避免知识库变成不可读的 HTML 转储。
 
 ## 对项目的意义
 
