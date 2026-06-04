@@ -85,9 +85,69 @@ def _build_runtime_context(stats: dict) -> str:
             f"当前可检索片段数量：{chunk_count} 个 chunks。",
             f"当前本地向量库：{vector_store}。",
             f"当前资料分类：{category_text}。",
+            "系统定位：这是本地 RAG 智能客服演示系统，不是 NXP AIoT Cloud 在线平台本体。",
             "资料内容覆盖 NXP AIoT Cloud / Cloud Lab、AI Hub、Model Zoo、LLM/VLM Edge Studio、Qwen/VSS、YOLOv8n、软件工具、i.MX/MCU 应用范例和系统方案。",
+            "系统能力边界：可以基于本地知识库回答资料范围内的问题，展示 RAG 检索流程和参考来源；不能替用户真实部署、管理云端设备或查询实时天气、股价、新闻等未入库信息。",
         ]
     )
+
+
+def _is_runtime_context_question(question: str) -> bool:
+    normalized = question.lower().replace(" ", "")
+    inventory_subjects = (
+        "资料",
+        "文档",
+        "知识库",
+        "数据",
+        "片段",
+        "chunk",
+        "chunks",
+        "索引",
+        "向量库",
+        "数据库",
+        "来源",
+        "分类",
+    )
+    inventory_intents = (
+        "多少",
+        "几个",
+        "几篇",
+        "数量",
+        "数",
+        "规模",
+        "范围",
+        "覆盖",
+        "有哪些",
+        "有什么",
+        "状态",
+        "情况",
+        "当前",
+        "可用",
+    )
+    capability_subjects = ("系统", "客服", "机器人", "助手", "你")
+    capability_intents = (
+        "能做",
+        "可以做",
+        "能回答",
+        "会回答",
+        "能问",
+        "能查",
+        "支持",
+        "功能",
+        "干什么",
+        "做什么",
+        "做啥",
+        "干嘛",
+        "用来干嘛",
+        "用来做什么",
+    )
+    asks_inventory = any(subject in normalized for subject in inventory_subjects) and any(
+        intent in normalized for intent in inventory_intents
+    )
+    asks_capability = any(subject in normalized for subject in capability_subjects) and any(
+        intent in normalized for intent in capability_intents
+    )
+    return asks_inventory or asks_capability
 
 
 def _index_ready() -> bool:
@@ -184,37 +244,50 @@ def chat(request: ChatRequest) -> ChatResponse:
             build_index(settings)
 
         runtime_context = _build_runtime_context(_safe_stats())
-        retriever = Retriever(settings)
-        _set_step(process, 2, "running", f"正在使用 {retriever.embedding_provider_name} 将问题转换为向量。")
-        try:
-            sources = retriever.retrieve(question, top_k=top_k, min_score=settings.min_score)
-        except EmbeddingError as exc:
-            _set_step(process, 2, "failed", f"问题向量化失败：{exc}")
-            _set_step(process, 3, "failed", "无法完成知识库检索。")
-            _set_step(process, 4, "waiting", "未构造生成 Prompt。")
-            _set_step(process, 5, "waiting", "未调用本地大模型。")
-            _set_step(process, 6, "done", "返回模型/embedding 不可用的友好提示。")
-            latency_ms = int((time.time() - started) * 1000)
-            return ChatResponse(
-                answer=(
-                    "本地 embedding 模型不可用，无法完成知识库检索。"
-                    "请确认 Ollama 已启动并已拉取 nomic-embed-text；"
-                    "课堂临时演示可以设置 EMBED_PROVIDER=tfidf 和 MOCK_LLM=true。"
-                ),
-                sources=[],
-                process=process,
-                metrics=ChatMetrics(
-                    latency_ms=latency_ms,
-                    top_k=top_k,
-                    retrieved_count=0,
-                    model=settings.llm_model if not settings.mock_llm else "MOCK_LLM",
-                ),
-            )
-        _set_step(process, 2, "done", f"使用 {retriever.embedding_provider_name} 将问题转换为向量。")
-        _set_step(process, 3, "done", f"从本地知识库中检索 Top-{top_k} 相关片段，命中 {len(sources)} 条。")
+        runtime_context_question = _is_runtime_context_question(question)
+        if runtime_context_question:
+            _set_step(process, 2, "done", "系统资料/状态类问题，无需向量化。")
+            _set_step(process, 3, "done", "使用后端实时系统运行上下文回答。")
+        else:
+            retriever = Retriever(settings)
+            _set_step(process, 2, "running", f"正在使用 {retriever.embedding_provider_name} 将问题转换为向量。")
+            try:
+                sources = retriever.retrieve(question, top_k=top_k, min_score=settings.min_score)
+            except EmbeddingError as exc:
+                _set_step(process, 2, "failed", f"问题向量化失败：{exc}")
+                _set_step(process, 3, "failed", "无法完成知识库检索。")
+                _set_step(process, 4, "waiting", "未构造生成 Prompt。")
+                _set_step(process, 5, "waiting", "未调用本地大模型。")
+                _set_step(process, 6, "done", "返回模型/embedding 不可用的友好提示。")
+                latency_ms = int((time.time() - started) * 1000)
+                return ChatResponse(
+                    answer=(
+                        "本地 embedding 模型不可用，无法完成知识库检索。"
+                        "请确认 Ollama 已启动并已拉取 nomic-embed-text；"
+                        "课堂临时演示可以设置 EMBED_PROVIDER=tfidf 和 MOCK_LLM=true。"
+                    ),
+                    sources=[],
+                    process=process,
+                    metrics=ChatMetrics(
+                        latency_ms=latency_ms,
+                        top_k=top_k,
+                        retrieved_count=0,
+                        model=settings.llm_model if not settings.mock_llm else "MOCK_LLM",
+                    ),
+                )
+            _set_step(process, 2, "done", f"使用 {retriever.embedding_provider_name} 将问题转换为向量。")
+            _set_step(process, 3, "done", f"从本地知识库中检索 Top-{top_k} 相关片段，命中 {len(sources)} 条。")
 
-        messages = build_rag_prompt(question, sources, runtime_context=runtime_context)
-        if not sources:
+        prompt_runtime_context = runtime_context if runtime_context_question else None
+        messages = build_rag_prompt(
+            question,
+            sources,
+            runtime_context=prompt_runtime_context,
+            runtime_only=runtime_context_question,
+        )
+        if runtime_context_question:
+            _set_step(process, 4, "done", "使用系统运行上下文构造 Prompt。")
+        elif not sources:
             _set_step(process, 4, "done", "未命中知识库片段，使用系统运行上下文构造 Prompt。")
         else:
             _set_step(process, 4, "done", "将用户问题、系统运行上下文和检索资料拼接成 RAG Prompt。")
@@ -235,6 +308,8 @@ def chat(request: ChatRequest) -> ChatResponse:
                     "已完成知识库检索和 Prompt 构造，但调用本地 Ollama 模型失败。"
                     "请确认 Ollama 已启动，并已拉取所需模型；也可以临时设置 MOCK_LLM=true 演示前端流程。"
                 )
+        if "当前知识库中没有找到明确依据" in answer:
+            sources = []
         _set_step(process, 6, "done", "返回客服回答、检索来源和流程信息。")
     except Exception as exc:
         for step in process:

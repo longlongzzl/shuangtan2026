@@ -46,6 +46,9 @@ FRONTEND_PROCESS_LABELS = [
     "返回答案与来源",
 ]
 
+MIN_DOCUMENTS = 17
+MIN_CHUNKS = 100
+
 REQUIRED_ENV = {
     "OLLAMA_BASE_URL": "http://localhost:11434",
     "LLM_MODEL": "qwen2.5:7b",
@@ -272,9 +275,9 @@ def assert_seed_loader_chunker() -> tuple[Any, Any, list[dict[str, Any]]]:
     settings = get_settings()
     documents = load_documents(settings.knowledge_base_dir)
     chunks = TextChunker(settings.chunk_size, settings.chunk_overlap).chunk_documents(documents)
-    if len(documents) != 7:
+    if len(documents) < MIN_DOCUMENTS:
         fail("seed/load demo documents", len(documents))
-    if len(chunks) != 30:
+    if len(chunks) < MIN_CHUNKS:
         fail("chunk demo knowledge base", len(chunks))
     for chunk in chunks:
         metadata = chunk.get("metadata", {})
@@ -292,7 +295,7 @@ def assert_index_and_api(settings: Any) -> None:
     from app.rag.retriever import build_index
 
     index_result = build_index(settings)
-    if index_result["document_count"] != 7 or index_result["chunk_count"] != 30:
+    if index_result["document_count"] < MIN_DOCUMENTS or index_result["chunk_count"] < MIN_CHUNKS:
         fail("build index", index_result)
     pass_line("build index", index_result)
 
@@ -305,12 +308,12 @@ def assert_index_and_api(settings: Any) -> None:
     health = client.get("/api/health").json()
     if health["status"] != "degraded" or health["ollama_connected"] is not False or "Ollama is not running" not in health.get("message", ""):
         fail("GET /api/health degraded without Ollama", health)
-    if health["document_count"] != 7 or health["chunk_count"] != 30:
+    if health["document_count"] < MIN_DOCUMENTS or health["chunk_count"] < MIN_CHUNKS:
         fail("GET /api/health knowledge stats", health)
     pass_line("GET /api/health degraded without Ollama", health)
 
     stats = client.get("/api/stats").json()
-    if stats["document_count"] != 7 or stats["chunk_count"] != 30 or "RAG" not in stats["categories"]:
+    if stats["document_count"] < MIN_DOCUMENTS or stats["chunk_count"] < MIN_CHUNKS or "RAG" not in stats["categories"]:
         fail("GET /api/stats", stats)
     pass_line("GET /api/stats", stats)
 
@@ -321,7 +324,7 @@ def assert_index_and_api(settings: Any) -> None:
     pass_line("GET /api/sample-questions", f"{len(questions)} questions")
 
     rebuild = client.post("/api/rebuild-index").json()
-    if rebuild["status"] != "success" or rebuild["document_count"] != 7 or rebuild["chunk_count"] != 30:
+    if rebuild["status"] != "success" or rebuild["document_count"] < MIN_DOCUMENTS or rebuild["chunk_count"] < MIN_CHUNKS:
         fail("POST /api/rebuild-index", rebuild)
     pass_line("POST /api/rebuild-index", rebuild)
 
@@ -331,6 +334,8 @@ def assert_index_and_api(settings: Any) -> None:
     ).json()
     if not chat["answer"] or len(chat["sources"]) == 0 or len(chat["process"]) != 6:
         fail("POST /api/chat mock response", chat)
+    if chat["sources"][0]["title"] != "RAG 智能客服问答流程":
+        fail("POST /api/chat RAG source priority", chat["sources"])
     if [step["name"] for step in chat["process"]] != PROCESS_NAMES:
         fail("POST /api/chat process names", chat["process"])
     if not all(0.0 <= source["score"] <= 1.0 for source in chat["sources"]):

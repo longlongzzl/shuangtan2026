@@ -6,6 +6,7 @@ from app.rag.chunker import TextChunker
 from app.rag.document_loader import Document, load_documents
 from app.rag.embeddings import TfidfEmbeddingProvider
 from app.rag.prompt_builder import build_rag_prompt
+from app.rag.retriever import _keyword_score
 from app.rag.vector_store import SimpleVectorStore
 from app.schemas import ChatMetrics, ChatResponse, SourceItem
 
@@ -29,6 +30,17 @@ def test_runtime_context_is_injected_into_prompt() -> None:
     assert "系统运行上下文" in full_prompt
 
 
+def test_runtime_context_question_detector_handles_natural_variants() -> None:
+    from app.main import _is_runtime_context_question
+
+    assert _is_runtime_context_question("你的资料数是多少？")
+    assert _is_runtime_context_question("你有多少可用资料")
+    assert _is_runtime_context_question("当前知识库有哪些内容")
+    assert _is_runtime_context_question("这系统能做啥啊")
+    assert not _is_runtime_context_question("介绍一下 rag 智能客服")
+    assert not _is_runtime_context_question("NXP Cloud Lab 系统方案有哪些")
+
+
 def test_chunker_returns_non_empty_chunks() -> None:
     document = Document(
         doc_id="doc-1",
@@ -41,6 +53,28 @@ def test_chunker_returns_non_empty_chunks() -> None:
     chunks = TextChunker(chunk_size=120, chunk_overlap=20).chunk_documents([document])
     assert chunks
     assert all(chunk["text"].strip() for chunk in chunks)
+
+
+def test_keyword_score_prefers_rag_customer_service_content() -> None:
+    rag_chunk = {
+        "text": "RAG 即检索增强生成，用户问题会先进入知识库检索，再构造 Prompt 给本地大模型生成智能客服回答。",
+        "metadata": {"title": "RAG 智能客服问答流程", "category": "RAG", "source": "demo"},
+    }
+    unrelated_chunk = {
+        "text": "Qwen2.5-VL 可用于视频分析和 VSS 视频检索场景。",
+        "metadata": {"title": "Qwen2.5-VL 视频分析与 VSS 视频检索方案", "category": "VLM", "source": "demo"},
+    }
+    broad_project_chunk = {
+        "text": "本项目目标是构建基于 Ollama 本地大语言模型和 RAG 技术的网站智能客服系统，完成从用户提问、知识库检索、大模型生成到网页展示的完整问答闭环。",
+        "metadata": {"title": "实习项目的技术目标与学习目标", "category": "项目目标", "source": "demo"},
+    }
+
+    question = "介绍一下 rag 智能客服"
+    long_question = "用户提问后 RAG 智能客服系统的完整处理流程是什么？"
+
+    assert _keyword_score(question, rag_chunk) > 0.45
+    assert _keyword_score(question, rag_chunk) > _keyword_score(question, unrelated_chunk)
+    assert _keyword_score(long_question, rag_chunk) > _keyword_score(long_question, broad_project_chunk)
 
 
 def test_prompt_builder_contains_question_and_context() -> None:
