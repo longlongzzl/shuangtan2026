@@ -10,10 +10,9 @@ from app.rag.vector_store import SimpleVectorStore
 from app.schemas import ChatMetrics, ChatResponse, SourceItem
 
 
-def test_knowledge_stats_answer_reports_counts() -> None:
-    from app.main import _build_knowledge_stats_answer, _is_knowledge_stats_question
+def test_runtime_context_is_injected_into_prompt() -> None:
+    from app.main import _build_runtime_context
 
-    question = "你有多少可用资料？"
     stats = {
         "document_count": 17,
         "chunk_count": 134,
@@ -21,11 +20,13 @@ def test_knowledge_stats_answer_reports_counts() -> None:
         "categories": ["NXP AIoT Cloud", "Edge AI"],
     }
 
-    assert _is_knowledge_stats_question(question)
-    answer = _build_knowledge_stats_answer(question, stats)
-    assert "17 篇资料" in answer
-    assert "134 个可检索片段" in answer
-    assert "chroma" in answer
+    runtime_context = _build_runtime_context(stats)
+    messages = build_rag_prompt("你的资料数是多少？", [], runtime_context=runtime_context)
+    full_prompt = "\n".join(message["content"] for message in messages)
+
+    assert "当前本地知识库文档数量：17 篇" in full_prompt
+    assert "当前可检索片段数量：134 个 chunks" in full_prompt
+    assert "系统运行上下文" in full_prompt
 
 
 def test_chunker_returns_non_empty_chunks() -> None:

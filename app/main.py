@@ -72,53 +72,22 @@ def _safe_stats() -> dict:
         return {"document_count": 0, "chunk_count": 0, "categories": [], "vector_store": "unknown"}
 
 
-def _is_knowledge_stats_question(question: str) -> bool:
-    normalized = "".join(question.lower().split())
-    markers = [
-        "多少资料",
-        "多少可用资料",
-        "有多少资料",
-        "你有多少",
-        "资料量",
-        "知识库多少",
-        "多少文档",
-        "多少chunk",
-        "多少片段",
-        "资料数量",
-        "可用资料",
-    ]
-    return any(marker in normalized for marker in markers)
-
-
-def _build_knowledge_stats_answer(question: str, stats: dict) -> str:
+def _build_runtime_context(stats: dict) -> str:
     document_count = int(stats.get("document_count", 0) or 0)
     chunk_count = int(stats.get("chunk_count", 0) or 0)
     vector_store = str(stats.get("vector_store") or settings.vector_store)
     categories = [str(category) for category in stats.get("categories", [])]
     category_text = "、".join(categories) if categories else "暂无分类统计"
 
-    lines = []
-    if "命令" in question:
-        lines.extend(
-            [
-                "如果你说的是“这种命令”，需要贴出具体命令、页面操作或报错上下文，我才能判断它是否合理。",
-                "",
-            ]
-        )
-    lines.extend(
+    return "\n".join(
         [
-            f"当前本地知识库包含 {document_count} 篇资料，已经切分成 {chunk_count} 个可检索片段。",
-            f"这些片段已经写入本地 {vector_store} 向量库，用于 RAG 检索。",
-            f"覆盖分类：{category_text}。",
-            "",
-            "资料内容主要包括 NXP AIoT Cloud / Cloud Lab、AI Hub、Model Zoo、LLM/VLM Edge Studio、Qwen/VSS、YOLOv8n、软件工具、i.MX/MCU 应用范例和系统方案。",
-            "",
-            "参考资料：",
-            "[1] 系统索引元数据",
-            "[2] data/knowledge_base 本地知识库目录",
+            f"当前本地知识库文档数量：{document_count} 篇。",
+            f"当前可检索片段数量：{chunk_count} 个 chunks。",
+            f"当前本地向量库：{vector_store}。",
+            f"当前资料分类：{category_text}。",
+            "资料内容覆盖 NXP AIoT Cloud / Cloud Lab、AI Hub、Model Zoo、LLM/VLM Edge Studio、Qwen/VSS、YOLOv8n、软件工具、i.MX/MCU 应用范例和系统方案。",
         ]
     )
-    return "\n".join(lines)
 
 
 def _index_ready() -> bool:
@@ -214,26 +183,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         if not _index_ready():
             build_index(settings)
 
-        if _is_knowledge_stats_question(question):
-            stats = _safe_stats()
-            _set_step(process, 2, "done", "识别为知识库统计类问题，无需问题向量化。")
-            _set_step(process, 3, "done", "直接读取本地索引元数据和知识库统计。")
-            _set_step(process, 4, "done", "根据系统统计构造回答。")
-            _set_step(process, 5, "done", "无需调用本地大模型生成。")
-            _set_step(process, 6, "done", "返回知识库资料数量和覆盖范围。")
-            latency_ms = int((time.time() - started) * 1000)
-            return ChatResponse(
-                answer=_build_knowledge_stats_answer(question, stats),
-                sources=[],
-                process=process,
-                metrics=ChatMetrics(
-                    latency_ms=latency_ms,
-                    top_k=top_k,
-                    retrieved_count=0,
-                    model="system-stats",
-                ),
-            )
-
+        runtime_context = _build_runtime_context(_safe_stats())
         retriever = Retriever(settings)
         _set_step(process, 2, "running", f"正在使用 {retriever.embedding_provider_name} 将问题转换为向量。")
         try:
@@ -263,30 +213,28 @@ def chat(request: ChatRequest) -> ChatResponse:
         _set_step(process, 2, "done", f"使用 {retriever.embedding_provider_name} 将问题转换为向量。")
         _set_step(process, 3, "done", f"从本地知识库中检索 Top-{top_k} 相关片段，命中 {len(sources)} 条。")
 
+        messages = build_rag_prompt(question, sources, runtime_context=runtime_context)
         if not sources:
-            _set_step(process, 4, "done", "没有足够检索资料，未构造生成 Prompt。")
-            _set_step(process, 5, "done", "跳过模型生成，直接返回资料不足提示。")
-            answer = "当前知识库中没有找到明确依据，建议补充相关资料后再查询。"
+            _set_step(process, 4, "done", "未命中知识库片段，使用系统运行上下文构造 Prompt。")
         else:
-            messages = build_rag_prompt(question, sources)
-            _set_step(process, 4, "done", "将用户问题和检索资料拼接成 RAG Prompt。")
-            if settings.mock_llm:
-                answer = generate_mock_answer(question, sources)
-                _set_step(process, 5, "done", "MOCK_LLM=true，已生成演示回答。")
-            else:
-                try:
-                    answer = OllamaClient(settings).chat(
-                        messages,
-                        model=settings.llm_model,
-                        temperature=settings.temperature,
-                    )
-                    _set_step(process, 5, "done", f"调用 Ollama 本地模型 {settings.llm_model} 生成回答。")
-                except OllamaError as exc:
-                    _set_step(process, 5, "failed", f"本地模型调用失败：{exc}")
-                    answer = (
-                        "已完成知识库检索，但调用本地 Ollama 模型失败。"
-                        "请确认 Ollama 已启动，并已拉取所需模型；也可以临时设置 MOCK_LLM=true 演示前端流程。"
-                    )
+            _set_step(process, 4, "done", "将用户问题、系统运行上下文和检索资料拼接成 RAG Prompt。")
+        if settings.mock_llm:
+            answer = generate_mock_answer(question, sources)
+            _set_step(process, 5, "done", "MOCK_LLM=true，已生成演示回答。")
+        else:
+            try:
+                answer = OllamaClient(settings).chat(
+                    messages,
+                    model=settings.llm_model,
+                    temperature=settings.temperature,
+                )
+                _set_step(process, 5, "done", f"调用 Ollama 本地模型 {settings.llm_model} 生成回答。")
+            except OllamaError as exc:
+                _set_step(process, 5, "failed", f"本地模型调用失败：{exc}")
+                answer = (
+                    "已完成知识库检索和 Prompt 构造，但调用本地 Ollama 模型失败。"
+                    "请确认 Ollama 已启动，并已拉取所需模型；也可以临时设置 MOCK_LLM=true 演示前端流程。"
+                )
         _set_step(process, 6, "done", "返回客服回答、检索来源和流程信息。")
     except Exception as exc:
         for step in process:
