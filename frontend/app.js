@@ -53,6 +53,19 @@ function statusLabel(status) {
   return labels[status] || status;
 }
 
+async function readJson(response) {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const message = text.length > 200 ? `${text.slice(0, 200)}...` : text;
+    throw new Error(message || `HTTP ${response.status}`);
+  }
+}
+
 function renderProcess(steps = defaultProcess) {
   processList.innerHTML = steps
     .map(
@@ -116,7 +129,7 @@ function setLoading(isLoading) {
 async function refreshHealth() {
   try {
     const response = await fetch("/api/health");
-    const data = await response.json();
+    const data = await readJson(response);
     statusPill.textContent = data.status === "ok" ? "正常" : "降级";
     statusPill.className = `status-pill ${data.status === "ok" ? "ok" : "degraded"}`;
     ollamaStatus.textContent = data.ollama_connected ? "已连接" : "未连接";
@@ -136,7 +149,7 @@ async function refreshHealth() {
 async function loadSampleQuestions() {
   try {
     const response = await fetch("/api/sample-questions");
-    const questions = await response.json();
+    const questions = await readJson(response);
     sampleQuestions.innerHTML = questions
       .map((question) => `<button class="sample-chip" type="button" title="${escapeHtml(question)}">${escapeHtml(question)}</button>`)
       .join("");
@@ -156,7 +169,7 @@ async function rebuildIndex() {
   statusMessage.textContent = "正在重建知识库索引...";
   try {
     const response = await fetch("/api/rebuild-index", { method: "POST" });
-    const data = await response.json();
+    const data = await readJson(response);
     if (!response.ok) {
       throw new Error(data.detail || "索引重建失败");
     }
@@ -193,7 +206,7 @@ async function sendQuestion(event) {
         top_k: Number(topKInput.value || 3),
       }),
     });
-    const data = await response.json();
+    const data = await readJson(response);
     if (!response.ok) {
       throw new Error(data.detail || "请求失败");
     }

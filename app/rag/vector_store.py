@@ -222,10 +222,10 @@ def _metadata_for_dir(persist_dir: Path) -> dict[str, Any]:
         return {}
 
 
-def create_vector_store(config: Settings = settings, force_simple: bool = False):
+def create_vector_store(config: Settings = settings, force_simple: bool = False, prefer_config: bool = False):
     config.vector_store_dir.mkdir(parents=True, exist_ok=True)
     metadata = _metadata_for_dir(config.vector_store_dir)
-    if force_simple or metadata.get("vector_store") == "simple":
+    if force_simple or (metadata.get("vector_store") == "simple" and not prefer_config):
         return SimpleVectorStore(config.vector_store_dir)
     if config.vector_store == "chroma":
         try:

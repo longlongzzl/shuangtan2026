@@ -50,8 +50,9 @@ def build_index(config: Settings = settings) -> dict[str, Any]:
         provider_state = provider.get_state()
         force_simple_store = True
 
-    reset_vector_store_files(config)
-    store = create_vector_store(config, force_simple=force_simple_store)
+    if force_simple_store:
+        reset_vector_store_files(config)
+    store = create_vector_store(config, force_simple=force_simple_store, prefer_config=True)
     metadata = {
         "embedding_provider": embedding_provider_name,
         "embedding_model": config.embed_model if embedding_provider_name == "ollama" else "local-tfidf",

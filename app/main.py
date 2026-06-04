@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -136,7 +136,10 @@ def sample_questions() -> list[str]:
 
 @app.post("/api/rebuild-index", response_model=RebuildIndexResponse)
 def rebuild_index() -> RebuildIndexResponse:
-    result = build_index(settings)
+    try:
+        result = build_index(settings)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"索引重建失败：{exc}") from exc
     return RebuildIndexResponse(
         status="success",
         document_count=result["document_count"],
