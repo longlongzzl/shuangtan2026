@@ -179,6 +179,10 @@ API 内置的示例问题还包括：
 
 详细说明见 [docs/api_reference.md](docs/api_reference.md)。
 
+## 答辩准备
+
+技术实现细节、部署检查清单和老师可能追问的问题见 [docs/technical_defense_guide.md](docs/technical_defense_guide.md)。
+
 ## 测试
 
 ```bash
